@@ -1,0 +1,2 @@
+rtsp://admin:GWDCOI@192.168.1.5:554/stream?timeout=1000
+rtsp://admin:CHZPLD@192.168.1.6:554/stream?timeout=1000

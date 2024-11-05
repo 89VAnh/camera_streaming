@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Streams from FastAPI with WebRTC</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+
+        video {
+            width: 45%;
+            /* Adjust width as needed */
+            height: auto;
+            margin: 0 10px;
+            /* Spacing between videos */
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Video Streams from FastAPI with WebRTC</h1>
+    <video id="video1" autoplay playsinline></video>
+    <video id="video2" autoplay playsinline></video>
+
+    <div class="button-container">
+        <button id="connectBtn1">Connect Camera 1</button>
+        <button id="disconnectBtn1" disabled>Disconnect Camera 1</button>
+        <button id="connectBtn2">Connect Camera 2</button>
+        <button id="disconnectBtn2" disabled>Disconnect Camera 2</button>
+    </div>
+
+    <script>
+        const ws = new WebSocket("ws://localhost:8088/ws");
+        const videoElements = [document.getElementById('video1'), document.getElementById('video2')];
+        const pcs = [null, null];
+
+        ws.onmessage = async (event) => {
+            const message = JSON.parse(event.data);
+            if (message.type === "answer") {
+                const pc = pcs[message.cameraId];
+                await pc.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: message.sdp }));
+            } else if (message.type === "candidate") {
+                const pc = pcs[message.cameraId];
+                await pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+            }
+        };
+
+        const connectCamera = async (cameraId) => {
+            const pc = new RTCPeerConnection();
+            pcs[cameraId] = pc;
+
+            pc.ontrack = (event) => {
+                videoElements[cameraId].srcObject = event.streams[0];
+            };
+
+            const response = await fetch(`http://localhost:8088/video_feed/${cameraId}`);
+            const result = await response.json();  // Get the JSON response
+
+            if (response.ok) {
+                console.log(result.message); // Log the success message
+            } else {
+                console.error("Failed to connect to the video feed.");
+            }
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            ws.send(JSON.stringify({ type: "offer", sdp: offer.sdp, cameraId }));
+        };
+
+
+        document.getElementById('connectBtn1').onclick = () => {
+            connectCamera(0);
+            document.getElementById('disconnectBtn1').disabled = false;
+            document.getElementById('connectBtn1').disabled = true;
+        };
+
+        document.getElementById('disconnectBtn1').onclick = () => {
+            pcs[0]?.close();
+            pcs[0] = null;
+            document.getElementById('disconnectBtn1').disabled = true;
+            document.getElementById('connectBtn1').disabled = false;
+        };
+
+        document.getElementById('connectBtn2').onclick = () => {
+            connectCamera(1);
+            document.getElementById('disconnectBtn2').disabled = false;
+            document.getElementById('connectBtn2').disabled = true;
+        };
+
+        document.getElementById('disconnectBtn2').onclick = () => {
+            pcs[1]?.close();
+            pcs[1] = null;
+            document.getElementById('disconnectBtn2').disabled = true;
+            document.getElementById('connectBtn2').disabled = false;
+        };
+    </script>
+</body>
+
+</html>

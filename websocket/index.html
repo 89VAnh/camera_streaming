@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Video Stream</title>
+    <style>
+        #videoCanvas {
+            width: 640px;
+            height: 480px;
+            background-color: black;
+        }
+        button {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Video Stream</h1>
+    <canvas id="videoCanvas"></canvas>
+    <br>
+    <button id="connectBtn">Connect</button>
+    <button id="disconnectBtn" disabled>Disconnect</button>
+
+    <script>
+        const videoCanvas = document.getElementById('videoCanvas');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        let websocket = null;
+        const ctx = videoCanvas.getContext('2d');
+
+        // Handle WebSocket connection
+        function connectWebSocket() {
+            websocket = new WebSocket("ws://localhost:8088/ws/video");
+
+            websocket.onopen = function(event) {
+                console.log("WebSocket connection opened.");
+                connectBtn.disabled = true; // Disable connect button when connected
+                disconnectBtn.disabled = false; // Enable disconnect button
+            };
+
+            websocket.onmessage = function(event) {
+                const imageBlob = new Blob([event.data], { type: 'image/jpeg' });
+                const img = new Image();
+                img.onload = function() {
+                    ctx.drawImage(img, 0, 0, videoCanvas.width, videoCanvas.height);
+                };
+                img.src = URL.createObjectURL(imageBlob);
+            };
+
+            websocket.onclose = function(event) {
+                console.log("WebSocket connection closed.");
+                connectBtn.disabled = false; // Enable connect button
+                disconnectBtn.disabled = true; // Disable disconnect button
+                ctx.clearRect(0, 0, videoCanvas.width, videoCanvas.height); // Clear canvas on disconnect
+            };
+
+            websocket.onerror = function(event) {
+                console.error("WebSocket error:", event);
+            };
+        }
+
+        // Handle WebSocket disconnection
+        function disconnectWebSocket() {
+            console.log(websocket);
+            if (websocket) {
+                websocket.close();
+            }
+        }
+
+        // Event listeners for buttons
+        connectBtn.addEventListener('click', connectWebSocket);
+        disconnectBtn.addEventListener('click', disconnectWebSocket);
+    </script>
+</body>
+</html>

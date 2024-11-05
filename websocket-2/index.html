@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Streams from FastAPI</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .video-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        img {
+            width: 45%; /* Adjust width as needed */
+            height: auto;
+            margin: 0 10px; /* Spacing between videos */
+        }
+        .button-container {
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Video Streams from FastAPI</h1>
+    <div class="video-container">
+        <img id="video1" alt="Video stream" />
+        <img id="video2" alt="Video stream" />
+    </div>
+
+    <div class="button-container">
+        <div>
+            <h2>Camera 1</h2>
+            <button id="connectBtn1">Connect Camera 1</button>
+            <button id="disconnectBtn1" disabled>Disconnect Camera 1</button>
+        </div>
+        <div>
+            <h2>Camera 2</h2>
+            <button id="connectBtn2">Connect Camera 2</button>
+            <button id="disconnectBtn2" disabled>Disconnect Camera 2</button>
+        </div>
+    </div>
+
+    <script>
+        const rtspUrls = [
+            'rtsp://admin:GWDCOI@192.168.1.5:554/stream?timeout=1000',
+            'rtsp://admin:CHZPLD@192.168.1.6:554/stream?timeout=1000'
+        ];
+
+        const videoElements = [document.getElementById('video1'), document.getElementById('video2')];
+        let websockets = [null, null]; // Array to hold WebSocket connections
+
+        // Connect button event for Camera 1
+        document.getElementById('connectBtn1').addEventListener('click', () => {
+            connectCamera(0);
+        });
+
+        // Disconnect button event for Camera 1
+        document.getElementById('disconnectBtn1').addEventListener('click', () => {
+            disconnectCamera(0);
+        });
+
+        // Connect button event for Camera 2
+        document.getElementById('connectBtn2').addEventListener('click', () => {
+            connectCamera(1);
+        });
+
+        // Disconnect button event for Camera 2
+        document.getElementById('disconnectBtn2').addEventListener('click', () => {
+            disconnectCamera(1);
+        });
+
+        function connectCamera(index) {
+            if (websockets[index]) {
+                console.log(`Camera ${index + 1} is already connected.`);
+                return;
+            }
+
+            // Establish WebSocket connection
+            websockets[index] = new WebSocket('ws://localhost:8088/ws');
+
+            websockets[index].onopen = () => {
+                console.log(`WebSocket connection established for Camera ${index + 1}`);
+                document.getElementById(`connectBtn${index + 1}`).disabled = true;
+                document.getElementById(`disconnectBtn${index + 1}`).disabled = false;
+
+                // Set video source
+                const encodedUrl = encodeURIComponent(rtspUrls[index]);
+                videoElements[index].src = 'http://0.0.0.0:8088/video_feed?url=' + encodedUrl;
+
+                videoElements[index].onloadstart = () => {
+                    console.log(`Video ${index + 1} loading started`);
+                };
+
+                videoElements[index].onerror = () => {
+                    console.error(`Error loading video feed for video ${index + 1}`);
+                };
+            };
+
+            websockets[index].onmessage = (event) => {
+                console.log("Message from server:", event.data);
+            };
+
+            websockets[index].onclose = () => {
+                console.log(`WebSocket connection closed for Camera ${index + 1}`);
+                document.getElementById(`connectBtn${index + 1}`).disabled = false;
+                document.getElementById(`disconnectBtn${index + 1}`).disabled = true;
+                websockets[index] = null; // Clear the WebSocket reference
+                stopVideoStream(index); // Stop the video stream
+            };
+
+            websockets[index].onerror = (error) => {
+                console.error("WebSocket error:", error);
+            };
+        }
+
+        function disconnectCamera(index) {
+            if (websockets[index]) {
+                websockets[index].close(); // Close the WebSocket connection
+            } else {
+                console.log(`Camera ${index + 1} is not connected.`);
+            }
+        }
+
+        function stopVideoStream(index) {
+            videoElements[index].src = ''; // Stop the video stream
+            console.log(`Stopped video stream for Camera ${index + 1}`);
+        }
+    </script>
+</body>
+</html>
